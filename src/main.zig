@@ -17,9 +17,12 @@ const usage =
     \\
 ;
 
+const relative_data_dir_path = "/.local/share/scratchpad";
+
 const Cmd = enum {
     help,
     new,
+    open,
     list,
     config,
 };
@@ -37,7 +40,7 @@ pub fn main(init: std.process.Init) !void {
         data_dir = try std.mem.concat(
             arena,
             u8,
-            &.{ home_path, "/.local/share/scratchpad" },
+            &.{ home_path, relative_data_dir_path },
         );
     } else {
         std.log.info("$HOME directory path not set", .{});
@@ -68,9 +71,25 @@ pub fn main(init: std.process.Init) !void {
             if (args.len <= 2) {
                 std.log.info("Please specify the filename of the created scratchpad", .{});
                 return;
+            } else if (args.len > 3) {
+                std.log.info("usage: scratchpad new <filename>", .{});
+                return;
             }
 
             createScratchpad(editor, data_dir, args[2], io, arena) catch |err| {
+                std.log.err("{s}", .{@errorName(err)});
+            };
+        },
+        Cmd.open => {
+            if (args.len <= 2) {
+                std.log.info("Please specify the filename of the scratchpad being opened", .{});
+                return;
+            } else if (args.len > 3) {
+                std.log.info("usage: scratchpad open <filename>", .{});
+                return;
+            }
+
+            openScratchpad(editor, data_dir, args[2], io, arena) catch |err| {
                 std.log.err("{s}", .{@errorName(err)});
             };
         },
@@ -88,14 +107,14 @@ pub fn main(init: std.process.Init) !void {
     }
 }
 
-fn createScratchpad(editor: []const u8, data_dir_path: []const u8, filename: []const u8, io: Io, allocator: std.mem.Allocator) !void {
-    std.Io.Dir.createDirAbsolute(io, data_dir_path, .default_dir) catch |err| {
+fn createScratchpad(editor: []const u8, absolute_data_dir_path: []const u8, filename: []const u8, io: Io, allocator: std.mem.Allocator) !void {
+    std.Io.Dir.createDirAbsolute(io, absolute_data_dir_path, .default_dir) catch |err| {
         if (err != std.Io.Dir.CreateDirError.PathAlreadyExists) {
             return err;
         }
     };
 
-    const dir = try Io.Dir.openDirAbsolute(io, data_dir_path, .{});
+    const dir = try Io.Dir.openDirAbsolute(io, absolute_data_dir_path, .{});
 
     const filename_with_extension = try std.mem.concat(allocator, u8, &.{ filename, ".md" });
     const file = Io.Dir.createFile(dir, io, filename_with_extension, .{ .exclusive = true }) catch |err| {
@@ -110,15 +129,16 @@ fn createScratchpad(editor: []const u8, data_dir_path: []const u8, filename: []c
 
     const filename_len = try file.realPath(io, created_file_name);
 
-    var child = try std.process.spawn(
+    // Open created scratchpad with text editor
+    var child_process = try std.process.spawn(
         io,
         .{ .argv = &.{ editor, created_file_name[0..filename_len] } },
     );
-    _ = try child.wait(io);
+    _ = try child_process.wait(io);
 }
 
-fn listScratchpads(data_dir_path: []const u8, io: Io, allocator: std.mem.Allocator) !void {
-    const data_dir = try Io.Dir.openDirAbsolute(io, data_dir_path, .{ .iterate = true });
+fn listScratchpads(absolute_data_dir_path: []const u8, io: Io, allocator: std.mem.Allocator) !void {
+    const data_dir = try Io.Dir.openDirAbsolute(io, absolute_data_dir_path, .{ .iterate = true });
 
     const stdout_buf = try allocator.alloc(u8, 1024);
     defer allocator.free(stdout_buf);
@@ -129,8 +149,8 @@ fn listScratchpads(data_dir_path: []const u8, io: Io, allocator: std.mem.Allocat
     var header = try std.ArrayList(u8).initCapacity(allocator, 1024);
     defer header.deinit(allocator);
 
-    try header.appendSlice(allocator, "Scratchpads in directory");
-    try header.appendSlice(allocator, data_dir_path);
+    try header.appendSlice(allocator, "Scratchpads in directory ");
+    try header.appendSlice(allocator, absolute_data_dir_path);
     try header.appendSlice(allocator, ":\n");
 
     try writer.writeAll(header.items);
@@ -147,4 +167,40 @@ fn listScratchpads(data_dir_path: []const u8, io: Io, allocator: std.mem.Allocat
     }
 
     try stdout_writer.flush();
+}
+
+fn openScratchpad(editor: []const u8, absolute_data_dir_path: []const u8, filename: []const u8, io: Io, allocator: std.mem.Allocator) !void {
+    const data_dir = try Io.Dir.openDirAbsolute(
+        io,
+        absolute_data_dir_path,
+        .{ .iterate = true },
+    );
+
+    var file_iter = data_dir.iterate();
+
+    var found_scratchpad = false;
+    while (try file_iter.next(io)) |file| {
+        if (std.mem.eql(u8, file.name, filename)) {
+            found_scratchpad = true;
+            break;
+        }
+    }
+
+    if (!found_scratchpad) {
+        std.log.info("Scratchpad {s} not found", .{filename});
+        try listScratchpads(absolute_data_dir_path, io, allocator);
+        return;
+    }
+
+    const absolute_scratchpad_path = try std.mem.concat(
+        allocator,
+        u8,
+        &.{ absolute_data_dir_path, "/", filename },
+    );
+
+    var child_process = try std.process.spawn(
+        io,
+        .{ .argv = &.{ editor, absolute_scratchpad_path } },
+    );
+    _ = try child_process.wait(io);
 }
