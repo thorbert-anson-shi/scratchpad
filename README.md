@@ -1,6 +1,11 @@
-# Scratchpad
-
+<h1>
+  <p align="center">
+    Scratchpad
+  </p>
+</h1>
+<p align="center">
 Take notes without losing them
+</p>
 
 ## Motivation
 
