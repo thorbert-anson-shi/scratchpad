@@ -8,6 +8,8 @@ const usage =
     \\ Usage: zig [command] [options]
     \\
     \\ new          Create a new markdown scratchpad, and open it using the default text editor
+    \\ open         Open an existing scratchpad
+    \\ delete       Delete an existing scratchpad
     \\ list         List existing scratchpads
     \\ config       Print the configuration file path and contents
     \\
