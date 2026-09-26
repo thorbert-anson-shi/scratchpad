@@ -17,13 +17,14 @@ const usage =
     \\
 ;
 
-const relative_data_dir_path = "/.local/share/scratchpad";
+const relative_data_dir_path = "/.local/share/scratchpad/";
 
 const Cmd = enum {
     help,
     new,
     open,
     list,
+    delete,
     config,
 };
 
@@ -93,6 +94,19 @@ pub fn main(init: std.process.Init) !void {
                 std.log.err("{s}", .{@errorName(err)});
             };
         },
+        Cmd.delete => {
+            if (args.len <= 2) {
+                std.log.info("Please specify the filename of the scratchpad being delete", .{});
+                return;
+            } else if (args.len > 3) {
+                std.log.info("usage: scratchpad delete <filename>", .{});
+                return;
+            }
+
+            deleteScratchpad(data_dir, args[2], io, arena) catch |err| {
+                std.log.err("{s}", .{@errorName(err)});
+            };
+        },
         Cmd.list => {
             if (args.len != 2) {
                 std.log.info("{s}", .{usage});
@@ -103,6 +117,7 @@ pub fn main(init: std.process.Init) !void {
                 std.log.err("{s}", .{@errorName(err)});
             };
         },
+
         Cmd.config => {},
     }
 }
@@ -154,7 +169,6 @@ fn listScratchpads(absolute_data_dir_path: []const u8, io: Io, allocator: std.me
     try header.appendSlice(allocator, ":\n");
 
     try writer.writeAll(header.items);
-
     var file_iter = data_dir.iterate();
     var idx: u32 = 1;
     var idx_str_buf: [32]u8 = undefined;
@@ -195,7 +209,7 @@ fn openScratchpad(editor: []const u8, absolute_data_dir_path: []const u8, filena
     const absolute_scratchpad_path = try std.mem.concat(
         allocator,
         u8,
-        &.{ absolute_data_dir_path, "/", filename },
+        &.{ absolute_data_dir_path, filename },
     );
 
     var child_process = try std.process.spawn(
@@ -203,4 +217,28 @@ fn openScratchpad(editor: []const u8, absolute_data_dir_path: []const u8, filena
         .{ .argv = &.{ editor, absolute_scratchpad_path } },
     );
     _ = try child_process.wait(io);
+}
+
+fn deleteScratchpad(absolute_data_dir_path: []const u8, filename: []const u8, io: Io, allocator: std.mem.Allocator) !void {
+    const data_dir = try Io.Dir.openDirAbsolute(io, absolute_data_dir_path, .{ .iterate = true });
+
+    var file_iter = data_dir.iterate();
+
+    var found_scratchpad = false;
+    while (try file_iter.next(io)) |file| {
+        if (std.mem.eql(u8, file.name, filename)) {
+            found_scratchpad = true;
+            break;
+        }
+    }
+
+    if (!found_scratchpad) {
+        std.log.info("Scratchpad {s} not found", .{filename});
+        try listScratchpads(absolute_data_dir_path, io, allocator);
+        return;
+    }
+
+    try data_dir.deleteFile(io, filename);
+
+    std.log.info("Successfully deleted scratchpad {s}", .{filename});
 }
