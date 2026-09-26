@@ -7,7 +7,7 @@ const fatal = std.process.fatal;
 const usage =
     \\ Usage: zig [command] [options]
     \\
-    \\ new          Create a new markdown scratchpad, and open it using the default text editor
+    \\ create       Create a new markdown scratchpad, and open it using the default text editor
     \\ open         Open an existing scratchpad
     \\ delete       Delete an existing scratchpad
     \\ list         List existing scratchpads
@@ -23,7 +23,7 @@ const relative_data_dir_path = "/.local/share/scratchpad/";
 
 const Cmd = enum {
     help,
-    new,
+    create,
     open,
     list,
     delete,
@@ -70,12 +70,12 @@ pub fn main(init: std.process.Init) !void {
             std.log.info("{s}", .{usage});
             return;
         },
-        Cmd.new => {
+        Cmd.create => {
             if (args.len <= 2) {
                 std.log.info("Please specify the filename of the created scratchpad", .{});
                 return;
             } else if (args.len > 3) {
-                std.log.info("usage: scratchpad new <filename>", .{});
+                std.log.info("usage: scratchpad create <filename>", .{});
                 return;
             }
 

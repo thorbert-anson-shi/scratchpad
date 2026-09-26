@@ -18,7 +18,7 @@ unorganized collection of notes.
 
 It's a CLI with a few simple CRUD commands. All these notes are by default
 stored in `$HOME/.local/share/scratchpad/`, and the default editor that's used
-for `new` and `open` commands look at your terminal's `$EDTIOR` variable.
+for `create` and `open` commands look at your terminal's `$EDTIOR` variable.
 
 Run `scratchpad help` for more usage information.
 
